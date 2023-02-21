@@ -11,7 +11,7 @@ RUN composer install \
     --no-progress \
     --optimize-autoloader
 
-FROM php:8-fpm-alpine
+FROM php:8.1.13-fpm-alpine
 
 RUN apk add --no-cache libpng libpng-dev && docker-php-ext-install gd && apk del libpng-dev
 RUN docker-php-ext-install pdo pdo_mysql
@@ -44,11 +44,6 @@ COPY routes routes
 COPY app app
 
 RUN chown -R www-data:www-data storage
-
-VOLUME [ \
-    "/var/www/html/storage", \
-    "/var/www/html/public" \
-]
 
 RUN composer run --no-ansi --no-interaction post-autoload-dump
 

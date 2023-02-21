@@ -4,15 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\UserRight;
-use App\Models\AccountVerification;
-use App\Mail\ChangePassword as ChangePasswordEmail;
 use App\Http\Resources\UserResource;
 use App\Http\Requests\UserRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Hash;
 
 use Illuminate\Support\Facades\Auth;
@@ -47,6 +43,13 @@ class UserController extends Controller
         } else {
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
+    }
+
+    public function check_token()
+    {
+        $user = Auth::User();
+        $user_token = $user->currentAccessToken();
+        if ($user_token->tokenable !== null) return response()->json(['authorized' => true]);
     }
 
     public function user_list_by_user_types(Request $request)
@@ -175,32 +178,9 @@ class UserController extends Controller
             //             $user->password = bcrypt($request->password);
             //             $user->save();
             //         }
-
-			/*
             $user->password = $request->new_password;
             $user->save();
 
-            return new UserResource($user->refresh());
-			*/
-
-			$jwt = AccountVerification::generateJWT($user->id, date(DATE_ISO8601));
-			$verificationToken = AccountVerification::create([
-				'user_id' => $user->id,
-				'token' => $jwt,
-				'expiry' => date(DATE_ISO8601, strtotime("+ 5min")),
-				'is_used' => false,
-			]);
-
-			$setupLink = Config::get('app.url').'/security/password-setup?token='.$verificationToken->token;
-
-			$emailData = $verificationToken;
-			$emailData->token = $setupLink;
-			$emailData->name = $user->name;
-			$emailData->username = $user->username;
-
-			Mail::to($user->email)->send(new ChangePasswordEmail($emailData));
-
-            /* return response()->json(['message' => 'Password reset email sent.'], Response::HTTP_CREATED); */
             return new UserResource($user->refresh());
         } else
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
@@ -244,5 +224,33 @@ class UserController extends Controller
                 return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         } else
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+    }
+    public function get_user_dropdown(Request $request)
+    {
+        $user_rights = UserRight::whereHas('system_module', function ($query) {
+            $query->where('system_module', 'Administration - Users');
+        })
+            ->where('user_id', Auth::user()->id)
+            ->get();
+
+        if ($user_rights->count() > 0) {
+
+            $keywords = $request->keywords;
+            $users = User::where(function ($query) use ($keywords) {
+                if ($keywords) {
+                    $query->where('username', 'like', '%' . $keywords . '%')
+                        ->Orwhere('name', 'like', '%' . $keywords . '%')
+                        ->Orwhere('email', 'like', '%' . $keywords . '%')
+                        ->Orwhere('user_type', 'like', '%' . $keywords . '%');
+                }
+            })
+                ->orderBy('id', 'DESC')
+                ->get();
+
+            return UserResource::collection($users);
+            // return $users;
+        } else {
+            return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
     }
 }

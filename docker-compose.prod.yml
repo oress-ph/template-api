@@ -3,13 +3,13 @@ version: "3"
 services:
 
   nginx:
-    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/hii-berben-api_nginx:production
+    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/tempate-api_nginx:production
     build:
       context: ./
       dockerfile: .docker/nginx/Dockerfile
 
   php:
-    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/hii-berben-api_php:production
+    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/tempate-api_php:production
     env_file: .env
     build:
       context: ./

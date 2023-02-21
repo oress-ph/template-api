@@ -3,20 +3,20 @@ version: "3"
 services:
 
   nginx:
-    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/hii-berben-api_nginx:testing
+    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/tempate-api_nginx:testing
     build:
       cache_from:
-        - 290527213425.dkr.ecr.ap-east-1.amazonaws.com/hii-berben-api_nginx:testing
+        - 290527213425.dkr.ecr.ap-east-1.amazonaws.com/tempate-api_nginx:testing
     depends_on:
       php:
         condition: service_healthy
 
   php:
     container_name: test-php
-    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/hii-berben-api_php:testing
+    image: 290527213425.dkr.ecr.ap-east-1.amazonaws.com/tempate-api_php:testing
     build:
       cache_from:
-        - 290527213425.dkr.ecr.ap-east-1.amazonaws.com/hii-berben-api_php:testing
+        - 290527213425.dkr.ecr.ap-east-1.amazonaws.com/tempate-api_php:testing
       context: ./
       dockerfile: .docker/php/Dockerfile.dev
     volumes:

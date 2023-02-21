@@ -1,0 +1,55 @@
+FROM composer as composer
+
+COPY composer.json ./
+COPY composer.lock ./
+
+RUN composer install \
+    --no-dev \
+    --no-ansi \
+    --no-interaction \
+    --no-scripts \
+    --no-progress \
+    --optimize-autoloader
+
+FROM php:8-fpm-alpine
+
+RUN apk add --no-cache libpng libpng-dev && docker-php-ext-install gd && apk del libpng-dev
+RUN docker-php-ext-install pdo pdo_mysql
+
+ENV PATH="/usr/local/bin/:/var/www/html/:${PATH}"
+
+COPY .docker/php/php.ini /usr/local/etc/php/
+
+WORKDIR /var/www/html
+
+COPY entrypoint.sh /
+RUN chmod +x /entrypoint.sh
+
+COPY artisan ./
+
+COPY --from=composer /usr/bin/composer /usr/bin/composer
+
+COPY --from=composer --chown=www-data:www-data /app/vendor vendor
+COPY --from=composer /app/composer.json ./
+COPY --from=composer /app/composer.lock ./
+
+COPY bootstrap bootstrap
+COPY public public
+COPY config config
+COPY storage storage
+COPY database database
+COPY resources resources
+COPY tests tests
+COPY routes routes
+COPY app app
+
+RUN chown -R www-data:www-data storage
+
+VOLUME [ \
+    "/var/www/html/storage", \
+    "/var/www/html/public" \
+]
+
+RUN composer run --no-ansi --no-interaction post-autoload-dump
+
+CMD ["/entrypoint.sh"]

@@ -1,0 +1,62 @@
+name: api_testing
+
+on:
+  pull_request:
+    branches:
+      - master
+      - sprint/**
+
+permissions:
+  contents: read
+  issues: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  api_testing:
+
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: setup buildx cache
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-api_testing-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: setup buildx
+        uses: docker/setup-buildx-action@v2
+        id: buildx
+        with:
+          install: true
+
+      - name: build image
+        run: |
+          docker build \
+          --load \
+          --cache-from=type=local,src=/tmp/.buildx-cache \
+          --cache-to=type=local,dest=/tmp/.buildx-cache-new \
+          -f .docker/php/Dockerfile.shallow_test \
+          -t test-image:latest ./
+
+      - name: drop old buildx cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: run tests
+        run: docker run --name test-run -t test-image:latest
+
+      - name: fetch test results
+        run: docker cp test-run:/var/www/html/test-results ./test-results
+
+      - name: publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v1.36
+        if: always()
+        with:
+          files: "test-results/*.xml"
+          check_name: "API Quick Tests"

@@ -1,0 +1,79 @@
+name: api_deep_testing
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+  issues: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  api_deep_testing:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: setup buildx cache
+        uses: actions/cache@v2
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-api_deep_testing-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: authenticate docker
+        run: |
+          aws configure set aws_access_key_id "${{ secrets.AWS_ID }}"
+          aws configure set aws_secret_access_key "${{ secrets.AWS_SECRET }}"
+          aws configure set region "${{ secrets.AWS_STAGE_REGION }}"
+          docker login --username AWS --password $(aws ecr get-login-password --region ap-east-1) 290527213425.dkr.ecr.ap-east-1.amazonaws.com
+
+      - name: setup buildx
+        uses: docker/setup-buildx-action@v2
+        id: buildx
+        with:
+          install: true
+
+      - name: build image
+        run: |
+          mv docker-compose.testing.yml docker-compose.override.yml
+          touch .env
+          docker buildx bake \
+            -f docker-compose.yml \
+            -f docker-compose.override.yml \
+            --load \
+            --set=nginx.cache-from=type=local,src=/tmp/.buildx-cache/nginx \
+            --set=nginx.cache-to=type=local,dest=/tmp/.buildx-cache-new/nginx \
+            --set=php.cache-from=type=local,src=/tmp/.buildx-cache/php \
+            --set=php.cache-to=type=local,dest=/tmp/.buildx-cache-new/php \
+            --set=db.cache-from=type=local,src=/tmp/.buildx-cache/db \
+            --set=db.cache-to=type=local,dest=/tmp/.buildx-cache-new/db
+
+      - name: drop old buildx cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: run image
+        run: |
+          docker-compose up -d
+
+      - name: run tests
+        run: |
+          docker exec -t test-php php artisan test --without-tty --log-junit="test-results/test-result.xml"
+
+      - name: fetch test results
+        run: |
+          docker cp test-php:/var/www/html/test-results ./test-results
+
+      - name: publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v1.36
+        if: always()
+        with:
+          files: "test-results/*.xml"
+          check_name: "API Full Tests"
